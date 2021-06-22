@@ -1,0 +1,12 @@
+{
+  "providers": {
+    "ip": {
+      "use": "",
+      "config": {}
+    },
+    "dns": {
+      "use": "",
+      "config": {}
+    }
+  }
+}
