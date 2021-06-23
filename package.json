@@ -5,8 +5,12 @@
   "main": "./dist/main.js",
   "author": "BackRunner",
   "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "start": "ts-node ./main.ts",
+    "start:node": "node ./dist/main.js",
     "build": "tsc",
     "f2elint-scan": "f2elint scan",
     "f2elint-fix": "f2elint fix"
