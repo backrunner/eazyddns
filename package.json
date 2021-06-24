@@ -17,9 +17,11 @@
   },
   "dependencies": {
     "axios": "^0.21.1",
+    "log4js": "^6.3.0",
     "lru-cache": "^6.0.0",
     "node-cron": "^3.0.0",
-    "regex-go": "^0.3.0"
+    "qs": "^6.10.1",
+    "regex-go": "^0.4.0"
   },
   "devDependencies": {
     "@types/lru-cache": "^5.1.0",

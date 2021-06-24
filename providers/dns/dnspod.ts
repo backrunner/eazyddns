@@ -1,6 +1,8 @@
 /* eslint-disable no-console */
 import axios from 'axios';
+import qs from 'qs';
 import LRUCache from 'lru-cache';
+import { Logger } from 'log4js';
 import BaseDnsProvider from '../../base/DnsProvider';
 import { HttpRequestMethod } from '../../constants/enum';
 import { md5 } from '../../utils/hash';
@@ -11,7 +13,7 @@ interface DNSPodProviderConfig {
   subDomain: string;
 }
 
-interface DNSPodCommonHeaders {
+interface DNSPodCommonParams {
   login_token: string;
   lang: string;
   format: string;
@@ -20,10 +22,12 @@ interface DNSPodCommonHeaders {
 
 class DnsPodDNSProvider implements BaseDnsProvider {
   private config: DNSPodProviderConfig;
-  private commonParams: DNSPodCommonHeaders;
+  private logger: Logger;
+  private commonParams: DNSPodCommonParams;
   private recordIdCache: LRUCache<string, string>;
   private lastUpdateIP: string | null;
-  constructor(config: DNSPodProviderConfig) {
+  constructor(config: DNSPodProviderConfig, logger: Logger) {
+    this.logger = logger;
     this.config = Object.assign(
       {
         subDomain: '@',
@@ -45,15 +49,25 @@ class DnsPodDNSProvider implements BaseDnsProvider {
     if (this.lastUpdateIP && this.lastUpdateIP === ip) {
       return;
     }
-    let recordId = await this.fetchRecordId();
+    this.logger.debug('Starting to fetch the record id...');
+    let recordId;
+    try {
+      recordId = await this.fetchRecordId();
+    } catch (err) {
+      this.logger.error('Failed to fetch record id.', err.message);
+      return;
+    }
     if (!recordId) {
       // try to create
+      this.logger.debug('Record does not exist, starting to create it...');
       recordId = await this.createRecord(ip);
       if (!recordId) {
-        console.error('Failed to update dns record: cannot get the record ID.');
+        this.logger.error('Failed to update dns record: cannot get the record ID.');
         return;
       }
     }
+    this.logger.debug('Record id fetched: ', recordId);
+    this.logger.debug('Starting to modify the record...');
     await this.modifyRecord(recordId, ip);
     this.lastUpdateIP = ip;
   }
@@ -73,7 +87,12 @@ class DnsPodDNSProvider implements BaseDnsProvider {
         params: mergedParams,
       });
     } else {
-      return axios.post(requestUrl, mergedParams);
+      return axios.post(requestUrl, qs.stringify(mergedParams, { encode: false }), {
+        headers: {
+          'User-Agent': 'easyddns/0.1.0',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
     }
   }
   private async fetchRecordId() {
@@ -82,26 +101,32 @@ class DnsPodDNSProvider implements BaseDnsProvider {
     if (cachedId) {
       return cachedId;
     }
-    const recordList = await this.sendRequest({
-      method: HttpRequestMethod.GET,
-      path: 'Record.List',
-      params: {
-        domain: this.config.domain,
-        sub_domain: this.config.subDomain,
-      },
-    });
-    if (recordList.data.status !== '1') {
-      console.error('Cannot fetch the ID of the specified record.');
-      return;
+    let recordList: any;
+    try {
+      recordList = await this.sendRequest({
+        method: HttpRequestMethod.POST,
+        path: 'Record.List',
+        params: {
+          domain: this.config.domain,
+          sub_domain: this.config.subDomain,
+        },
+      });
+    } catch (err) {
+      this.logger.error('Failed to fetch record id.', err.message);
+      throw err;
+    }
+    if (recordList.data.status.code !== '1') {
+      this.logger.error('Cannot fetch the ID of the specified record.');
+      throw new Error(recordList.data.status.message);
     }
     // cache record id
     if (!recordList.data.records.length) {
-      console.error('Cannot find the specified record.');
+      this.logger.error('Cannot find the specified record.');
       return;
     }
     const record = recordList.data.records[0];
     if (!record) {
-      console.error('Failed to read record data.');
+      this.logger.error('Failed to read record data.');
       return;
     }
     const { id: recordId } = record;
@@ -109,39 +134,55 @@ class DnsPodDNSProvider implements BaseDnsProvider {
     return recordId;
   }
   private async createRecord(ip: string) {
-    const res = await this.sendRequest({
-      method: HttpRequestMethod.POST,
-      path: 'Record.Create',
-      params: {
-        domain: this.config.domain,
-        sub_domain: this.config.subDomain,
-        record_type: 'A',
-        record_line: '默认',
-        value: ip,
-      },
-    });
+    let res: any;
+    try {
+      res = await this.sendRequest({
+        method: HttpRequestMethod.POST,
+        path: 'Record.Create',
+        params: {
+          domain: this.config.domain,
+          sub_domain: this.config.subDomain,
+          record_type: 'A',
+          record_line: '默认',
+          value: ip,
+        },
+      });
+    } catch (err) {
+      this.logger.error('Failed to create record.', err.message);
+      return;
+    }
     if (res.data.status.code !== '1') {
-      console.error('Failed to create the record:', res.data.status.message);
+      this.logger.error('Failed to create the record:', res.data.status.message);
       return null;
     }
+    this.logger.debug('Record has been created successfully.');
+    this.lastUpdateIP = ip;
     return res.data.record.id;
   }
   private async modifyRecord(recordId: string, ip: string) {
-    const res = await this.sendRequest({
-      method: HttpRequestMethod.POST,
-      path: 'Record.Modify',
-      params: {
-        record_id: recordId,
-        domain: this.config.domain,
-        sub_domain: this.config.subDomain,
-        record_type: 'A',
-        value: ip,
-      },
-    });
+    let res;
+    try {
+      res = await this.sendRequest({
+        method: HttpRequestMethod.POST,
+        path: 'Record.Modify',
+        params: {
+          record_id: recordId,
+          domain: this.config.domain,
+          sub_domain: this.config.subDomain,
+          record_type: 'A',
+          record_line: '默认',
+          value: ip,
+        },
+      });
+    } catch (err) {
+      this.logger.error('Failed to modify the record.', err);
+      return;
+    }
     if (res.data.status.code !== '1') {
-      console.error('Failed to modify the record:', res.data.status.message);
+      this.logger.error('Failed to modify the record:', res.data.status.message);
       return false;
     }
+    this.logger.debug('Record has been modified successfully.');
     return true;
   }
 }
