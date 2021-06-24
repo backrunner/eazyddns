@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import axios from 'axios';
+import axios, { AxiosResponse } from 'axios';
 import qs from 'qs';
 import LRUCache from 'lru-cache';
 import { Logger } from 'log4js';
@@ -50,7 +50,7 @@ class DnsPodDNSProvider implements BaseDnsProvider {
       return;
     }
     this.logger.debug('Starting to fetch the record id...');
-    let recordId;
+    let recordId: string;
     try {
       recordId = await this.fetchRecordId();
     } catch (err) {
@@ -101,7 +101,7 @@ class DnsPodDNSProvider implements BaseDnsProvider {
     if (cachedId) {
       return cachedId;
     }
-    let recordList: any;
+    let recordList: AxiosResponse;
     try {
       recordList = await this.sendRequest({
         method: HttpRequestMethod.POST,
@@ -134,7 +134,7 @@ class DnsPodDNSProvider implements BaseDnsProvider {
     return recordId;
   }
   private async createRecord(ip: string) {
-    let res: any;
+    let res: AxiosResponse;
     try {
       res = await this.sendRequest({
         method: HttpRequestMethod.POST,
@@ -160,7 +160,7 @@ class DnsPodDNSProvider implements BaseDnsProvider {
     return res.data.record.id;
   }
   private async modifyRecord(recordId: string, ip: string) {
-    let res;
+    let res: AxiosResponse;
     try {
       res = await this.sendRequest({
         method: HttpRequestMethod.POST,

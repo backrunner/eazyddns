@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosResponse } from 'axios';
 import { Logger } from 'log4js';
 import { ipv4LooseTester } from 'regex-go';
 import BaseIPProvider from '../../base/IpProvider';
@@ -16,7 +16,7 @@ class CustomIPProvider implements BaseIPProvider {
   }
   async query(): Promise<string | null> {
     this.logger.debug('Starting fetching ip...');
-    let res;
+    let res: AxiosResponse;
     try {
       res = await axios.get(this.config.api);
     } catch (err) {
