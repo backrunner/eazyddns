@@ -23,7 +23,13 @@ class CustomIPProvider implements BaseIPProvider {
       this.logger.error('Failed to fetch ip.');
       return null;
     }
-    const matches = ipv4LooseTester.exec(res.data);
+    let ipString: string;
+    if (typeof res.data === 'string') {
+      ipString = res.data;
+    } else {
+      ipString = JSON.stringify(res.data);
+    }
+    const matches = ipv4LooseTester.exec(ipString);
     if (!matches || !matches.length) {
       return null;
     }
