@@ -1,8 +1,8 @@
 module.exports = {
   apps: [
     {
-      name: 'tigo-server',
-      script: 'ts-node ./main.ts',
+      name: 'eazyddns',
+      script: './node_modules/.bin/ts-node ./main.ts',
     },
   ],
 };
